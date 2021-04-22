@@ -1,0 +1,16 @@
+{
+    "kotlin_version": "1.4.10",
+    "jvm_target": "1.8",
+    "version": "1.0.0",
+    "gradle_version": "6.3",
+    "tld": [
+        "org",
+        "com"
+    ],
+    "author": "michelsilves",
+    "app_name": "myapp",
+    "template_type": [
+        "default",
+        "cli"
+    ]
+}

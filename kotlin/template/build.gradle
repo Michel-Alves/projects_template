@@ -1,0 +1,51 @@
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '{{kotlin_version}}'
+    id 'application'
+}
+
+apply plugin: 'kotlin'
+apply plugin: 'application'
+
+ext.junitVersion = "5.+"
+ext.assertKVersion = "0.+"
+ext.mockkVersion = "1.+"
+ext.log4jVersion = "2.+"
+ext.log4jKotlinApiVersion = "1.+"{{ if eq template_type "cli" }}
+ext.mordantVersion = "1.+"
+ext.cliktVersion = "3.+"{{ end }}
+
+group '{{tld}}.{{author}}'
+version '{{version}}'
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+    implementation "org.apache.logging.log4j:log4j-api-kotlin:$log4jKotlinApiVersion"
+    implementation "org.apache.logging.log4j:log4j-api:$log4jVersion"
+    implementation "org.apache.logging.log4j:log4j-core:$log4jVersion"
+{{ if eq template_type "cli" }}    // cli
+    implementation "com.github.ajalt:mordant:$mordantVersion"
+    implementation "com.github.ajalt.clikt:clikt:$cliktVersion"{{ end }}
+
+    testImplementation "io.mockk:mockk:$mockkVersion"
+    testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+    testImplementation "org.junit.jupiter:junit-jupiter-params:$junitVersion"
+    testImplementation "com.willowtreeapps.assertk:assertk-jvm:$assertKVersion"
+
+    runtime "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+}
+
+test {
+    useJUnitPlatform()
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "{{jvm_target}}"
+}
+compileTestKotlin {
+    kotlinOptions.jvmTarget = "{{jvm_target}}"
+}
