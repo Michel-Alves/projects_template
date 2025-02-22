@@ -20,21 +20,21 @@ val cliktVersion = "3.+"
 {{ end }}
 
 dependencies {
-    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
-    implementation "org.apache.logging.log4j:log4j-api-kotlin:$log4jKotlinApiVersion"
-    implementation "org.apache.logging.log4j:log4j-api:$log4jVersion"
-    implementation "org.apache.logging.log4j:log4j-core:$log4jVersion"
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    implementation("org.apache.logging.log4j:log4j-api-kotlin:$log4jKotlinApiVersion")
+    implementation("org.apache.logging.log4j:log4j-api:$log4jVersion")
+    implementation("org.apache.logging.log4j:log4j-core:$log4jVersion")
 {{ if eq template_type "cli" }}    // cli
-    implementation "com.github.ajalt:mordant:$mordantVersion"
-    implementation "com.github.ajalt.clikt:clikt:$cliktVersion"
+    implementation("com.github.ajalt:mordant:$mordantVersion")
+    implementation("com.github.ajalt.clikt:clikt:$cliktVersion")
 {{ end }}
 
-    testImplementation "io.mockk:mockk:$mockkVersion"
-    testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
-    testImplementation "org.junit.jupiter:junit-jupiter-params:$junitVersion"
-    testImplementation "com.willowtreeapps.assertk:assertk-jvm:$assertKVersion"
+    testImplementation("io.mockk:mockk:$mockkVersion")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:$junitVersion")
+    testImplementation("com.willowtreeapps.assertk:assertk-jvm:$assertKVersion")
 
-    runtimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+    runtimeOnly("org.junit.jupiter:junit-jupiter-engine:$junitVersion")
 }
 
 tasks.test {
