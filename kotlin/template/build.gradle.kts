@@ -1,17 +1,16 @@
 plugins {
-    // Keep latest kotlin version updated
-    kotlin("jvm") version {{kotlin_version}}
+    kotlin("jvm") version "{{kotlin_version}}"
     application
 }
 
-group '{{tld}}.{{author}}'
-version '{{version}}'
+group "{{tld}}.{{author}}"
+version "{{version}}"
 
 repositories {
     mavenCentral()
 }
 
-val junitVersion = "5.+"
+val junitVersion = "{{junit_version}}"
 val assertKVersion = "0.+"
 val mockkVersion = "1.+"
 val log4jVersion = "2.+"
