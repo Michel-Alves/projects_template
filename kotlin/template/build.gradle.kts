@@ -9,8 +9,7 @@ version "{{version}}"
 repositories {
     mavenCentral()
 }
-
-val junitVersion = "{{junit_version}}"
+val junitVersion = {{junit_version}}
 val assertKVersion = "0.+"
 val mockkVersion = "1.+"
 val log4jVersion = "2.+"
