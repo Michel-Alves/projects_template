@@ -1,26 +1,25 @@
 plugins {
-    id 'org.jetbrains.kotlin.jvm' version '{{kotlin_version}}'
-    id 'application'
+    // Keep latest kotlin version updated
+    kotlin("jvm") version {{kotlin_version}}
+    application
 }
-
-apply plugin: 'kotlin'
-apply plugin: 'application'
-
-ext.junitVersion = "5.+"
-ext.assertKVersion = "0.+"
-ext.mockkVersion = "1.+"
-ext.log4jVersion = "2.+"
-ext.log4jKotlinApiVersion = "1.+"{{ if eq template_type "cli" }}
-ext.mordantVersion = "1.+"
-ext.cliktVersion = "3.+"{{ end }}
 
 group '{{tld}}.{{author}}'
 version '{{version}}'
 
 repositories {
     mavenCentral()
-    jcenter()
 }
+
+val junitVersion = "5.+"
+val assertKVersion = "0.+"
+val mockkVersion = "1.+"
+val log4jVersion = "2.+"
+val log4jKotlinApiVersion = "1.+"
+{{ if eq template_type "cli" }}
+val mordantVersion = "1.+"
+val cliktVersion = "3.+"
+{{ end }}
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
@@ -29,23 +28,17 @@ dependencies {
     implementation "org.apache.logging.log4j:log4j-core:$log4jVersion"
 {{ if eq template_type "cli" }}    // cli
     implementation "com.github.ajalt:mordant:$mordantVersion"
-    implementation "com.github.ajalt.clikt:clikt:$cliktVersion"{{ end }}
+    implementation "com.github.ajalt.clikt:clikt:$cliktVersion"
+{{ end }}
 
     testImplementation "io.mockk:mockk:$mockkVersion"
     testImplementation "org.junit.jupiter:junit-jupiter-api:$junitVersion"
     testImplementation "org.junit.jupiter:junit-jupiter-params:$junitVersion"
     testImplementation "com.willowtreeapps.assertk:assertk-jvm:$assertKVersion"
 
-    runtime "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
+    runtimeOnly "org.junit.jupiter:junit-jupiter-engine:$junitVersion"
 }
 
-test {
+tasks.test {
     useJUnitPlatform()
-}
-
-compileKotlin {
-    kotlinOptions.jvmTarget = "{{jvm_target}}"
-}
-compileTestKotlin {
-    kotlinOptions.jvmTarget = "{{jvm_target}}"
 }
