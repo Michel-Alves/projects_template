@@ -9,8 +9,11 @@
     ],
     "author": "michelsilves",
     "app_name": "myapp",
-    "template_type": [
+    "stack_profile": [
         "default",
-        "cli"
+        "cli",
+        "web",
+        "db",
+        "web-db"
     ]
 }
