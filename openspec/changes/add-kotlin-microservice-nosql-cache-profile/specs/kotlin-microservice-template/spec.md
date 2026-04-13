@@ -1,31 +1,31 @@
 ## ADDED Requirements
 
 ### Requirement: nosql-cache profile bundles raw Mongo driver, Spring Data Redis, and Mongock
-When the user selects `stack_profile=nosql-cache`, the generated project SHALL include the MongoDB Kotlin sync driver (`org.mongodb:mongodb-driver-kotlin-sync`), Spring Data Redis (`spring-boot-starter-data-redis`, Lettuce client pulled transitively), Mongock for MongoDB migrations (`io.mongock:mongock-springboot-v3` PLUS `io.mongock:mongodb-sync-v4-driver` — the raw-driver module, NOT `mongodb-springdata-v4-driver`), and the Testcontainers MongoDB module (`org.testcontainers:mongodb`) on the test classpath. The generated project SHALL NOT include `spring-boot-starter-data-mongodb` — Mongo access is through the raw driver only. When the user selects `stack_profile=default` or `stack_profile=relational-db`, NONE of these dependencies SHALL appear on the build classpath.
+When the user selects `stack_profile=nosql-cache`, the generated project SHALL include the MongoDB Java sync driver (`org.mongodb:mongodb-driver-sync`), Spring Data Redis (`spring-boot-starter-data-redis`, Lettuce client pulled transitively), Mongock for MongoDB migrations (`io.mongock:mongock-springboot-v3` PLUS `io.mongock:mongodb-sync-v4-driver` — the raw-driver module, NOT `mongodb-springdata-v4-driver`), and the Testcontainers MongoDB module (`org.testcontainers:mongodb`) on the test classpath. The generated project SHALL NOT include `spring-boot-starter-data-mongodb` — Mongo access is through the raw driver only. When the user selects `stack_profile=default` or `stack_profile=relational-db`, NONE of these dependencies SHALL appear on the build classpath.
 
 #### Scenario: nosql-cache classpath includes Mongo driver, Spring Data Redis, and Mongock raw-driver module
 - **WHEN** the template is generated with `stack_profile=nosql-cache`
-- **THEN** the rendered `build.gradle.kts` declares dependencies on `org.mongodb:mongodb-driver-kotlin-sync`, `org.springframework.boot:spring-boot-starter-data-redis`, `io.mongock:mongock-springboot-v3`, and `io.mongock:mongodb-sync-v4-driver`
+- **THEN** the rendered `build.gradle.kts` declares dependencies on `org.mongodb:mongodb-driver-sync`, `org.springframework.boot:spring-boot-starter-data-redis`, `io.mongock:mongock-springboot-v3`, and `io.mongock:mongodb-sync-v4-driver`
 - **AND** the rendered `build.gradle.kts` declares `org.testcontainers:mongodb` on `testImplementation`
 - **AND** the rendered `build.gradle.kts` does NOT contain the string `spring-boot-starter-data-mongodb`
 - **AND** the rendered `build.gradle.kts` does NOT contain the string `mongodb-springdata-v4-driver`
 
 #### Scenario: default and relational-db profiles do not include any nosql-cache dependencies
 - **WHEN** the template is generated with `stack_profile=default` or `stack_profile=relational-db`
-- **THEN** the rendered `build.gradle.kts` does NOT contain the strings `mongodb-driver-kotlin-sync`, `spring-boot-starter-data-redis`, `mongock-springboot-v3`, `mongodb-sync-v4-driver`, or `testcontainers:mongodb`
+- **THEN** the rendered `build.gradle.kts` does NOT contain the strings `mongodb-driver-sync`, `spring-boot-starter-data-redis`, `mongock-springboot-v3`, `mongodb-sync-v4-driver`, or `testcontainers:mongodb`
 
 ### Requirement: nosql-cache profile wires MongoClient, MongoDatabase, and a Mongo health indicator manually
 Because `stack_profile=nosql-cache` deliberately excludes `spring-boot-starter-data-mongodb`, Spring Boot's Mongo auto-configuration is NOT available. The generated project SHALL therefore ship a `MongoConfig` `@Configuration` class that:
 1. Reads `app.mongo.uri` and `app.mongo.database` from Spring configuration (custom namespace — NOT `spring.data.mongodb.*`).
-2. Exposes a `MongoClient` bean built with the default codec registry plus a `PojoCodecProvider.builder().automatic(true).build()` registry so plain Kotlin data classes round-trip through `MongoCollection<T>`. The bean SHALL be registered with `destroyMethod = "close"` so it releases connections on shutdown.
+2. Exposes a `MongoClient` bean built from a `MongoClientSettings` with the configured connection string. The bean SHALL be registered with `destroyMethod = "close"` so it releases connections on shutdown. No POJO codec registry is configured — the repository layer operates on `org.bson.Document` directly.
 3. Exposes a `MongoDatabase` bean obtained from `mongoClient.getDatabase(app.mongo.database)`.
 
 The generated project SHALL ALSO ship a `MongoHealthIndicator` `@Component` that implements Spring Boot Actuator's `HealthIndicator` interface. It SHALL report `UP` when `mongoClient.getDatabase("admin").runCommand(Document("ping", 1))` succeeds, and `DOWN` (with the exception as the health detail) when it throws. The indicator SHALL register automatically with Actuator's `/actuator/health` endpoint. The Redis health indicator comes transitively from `spring-boot-starter-data-redis` and requires no additional code.
 
 #### Scenario: MongoConfig exposes MongoClient and MongoDatabase beans under nosql-cache
 - **WHEN** the template is generated with `stack_profile=nosql-cache`
-- **THEN** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/MongoConfig.kt` exists, is annotated with `@Configuration`, reads properties under the prefix `app.mongo`, declares a `@Bean(destroyMethod = "close") fun mongoClient(): MongoClient`, and declares a `@Bean fun mongoDatabase(client: MongoClient): MongoDatabase`
-- **AND** the `MongoClient` bean is built with a `CodecRegistry` that composes the default codec registry with `CodecRegistries.fromProviders(PojoCodecProvider.builder().automatic(true).build())`
+- **THEN** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/MongoConfig.kt` exists, is annotated with `@Configuration`, binds properties under the prefix `app.mongo` via `@ConfigurationProperties(prefix = "app.mongo")` applied either directly to the `@Configuration` class or to a dedicated properties class imported via `@EnableConfigurationProperties`, declares a `@Bean(destroyMethod = "close") fun mongoClient(): MongoClient`, and declares a `@Bean fun mongoDatabase(client: MongoClient): MongoDatabase`
+- **AND** the `MongoClient` bean is built from a `MongoClientSettings` using the configured connection string only (no POJO codec registry configuration)
 
 #### Scenario: MongoHealthIndicator reports DOWN when Mongo is unreachable
 - **WHEN** the template is generated with `stack_profile=nosql-cache` AND the rendered project is started against a Mongo URI that points at a port with no Mongo listening
@@ -38,8 +38,8 @@ The generated project SHALL ALSO ship a `MongoHealthIndicator` `@Component` that
 
 ### Requirement: nosql-cache profile ships a sample document, repository, Mongock change unit, cache helper, and integration test
 When `stack_profile=nosql-cache`, the generated project SHALL include:
-- A plain Kotlin `data class SampleDocument` (NOT annotated with `@Document`; no Spring Data Mongo annotations anywhere), with each field given a default value so the Mongo POJO codec can construct instances via the no-arg constructor that Kotlin's default-value compilation produces.
-- A `SampleDocumentRepository` class that wraps a `MongoCollection<SampleDocument>` obtained from the injected `MongoDatabase`, exposing at minimum `findById(id: String): SampleDocument?`, `insert(doc: SampleDocument)`, and `deleteById(id: String)`.
+- A plain Kotlin `data class SampleDocument` (NOT annotated with `@Document`; no Spring Data Mongo annotations anywhere; no Mongo POJO codec annotations either). The sample deliberately uses the raw `org.bson.Document` type in the repository and converts at the boundary, rather than relying on the Mongo POJO codec, to avoid Kotlin data class / no-arg constructor fragility.
+- A `SampleDocumentRepository` class that wraps a `MongoCollection<org.bson.Document>` obtained from the injected `MongoDatabase`, exposing at minimum `findById(id: String): SampleDocument?`, `findByName(name: String): SampleDocument?`, `insert(doc: SampleDocument)`, and `deleteById(id: String)`. The repository owns the `SampleDocument ↔ Document` conversion with the Kotlin `id` field mapped to Mongo's `_id` field.
 - A Mongock `@ChangeUnit` class at `src/main/kotlin/<tld>/<author>/<app_name>/persistence/migration/V001__create_sample_index.kt` that takes a `MongoDatabase` parameter and creates a unique index on the `name` field of the sample documents collection.
 - A `SampleCache` class that wraps a `StringRedisTemplate` (injected by Spring Data Redis) with at minimum `get(key: String): String?`, `put(key: String, value: String)`, and `evict(key: String)`.
 - A `SampleDocumentService` (or equivalent) that combines the repository and the cache in a canonical cache-aside pattern: reads check the cache first, fall through to Mongo on miss, and write the resolved value back into the cache.
@@ -49,9 +49,9 @@ NONE of these files SHALL be rendered when `stack_profile=default` or `stack_pro
 
 #### Scenario: Sample document, repository, Mongock change unit, cache helper, and service exist for nosql-cache
 - **WHEN** the template is generated with `stack_profile=nosql-cache`
-- **THEN** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/SampleDocument.kt` exists, declares `package <tld>.<author>.<app_name>.persistence`, is a Kotlin `data class`, and every field has a default value
-- **AND** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/SampleDocument.kt` contains no Spring Data Mongo annotations (neither `@Document` nor `@Id` from `org.springframework.data.mongodb.core.mapping`)
-- **AND** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/SampleDocumentRepository.kt` exists and declares a class that takes a `MongoDatabase` and operates on a `MongoCollection<SampleDocument>` obtained via `db.getCollection("sample_documents", SampleDocument::class.java)`
+- **THEN** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/SampleDocument.kt` exists, declares `package <tld>.<author>.<app_name>.persistence`, and is a plain Kotlin `data class` with no annotations
+- **AND** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/SampleDocument.kt` contains no Spring Data Mongo annotations (neither `@Document` nor `@Id` from `org.springframework.data.mongodb.core.mapping`) and no Mongo POJO codec annotations (`@BsonId`, `@BsonProperty`)
+- **AND** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/SampleDocumentRepository.kt` exists and declares a class that takes a `MongoDatabase`, operates on a `MongoCollection<org.bson.Document>` obtained via `db.getCollection("sample_documents")`, and converts between `SampleDocument` and `Document` internally with `id` ↔ `_id` mapping
 - **AND** the file `src/main/kotlin/<tld>/<author>/<app_name>/persistence/migration/V001__create_sample_index.kt` exists, is annotated `@ChangeUnit(id = "V001__create_sample_index", order = "001", author = "<author>")`, and creates a unique index on the `name` field
 - **AND** the file `src/main/kotlin/<tld>/<author>/<app_name>/cache/SampleCache.kt` exists and uses `StringRedisTemplate`
 
@@ -67,7 +67,7 @@ NONE of these files SHALL be rendered when `stack_profile=default` or `stack_pro
 - **AND** the test inserts a `SampleDocument`, asserts that the first lookup resolves from Mongo and populates the cache, asserts that the second lookup resolves from the cache without hitting Mongo, evicts the cache key, and asserts that the third lookup resolves from Mongo again
 
 ### Requirement: nosql-cache profile configures Mongo under app.mongo.* and Redis under spring.data.redis.*
-When `stack_profile=nosql-cache`:
+When `stack_profile=nosql-cache`, the rendered configuration files SHALL separate Mongo settings (under a custom `app.mongo.*` namespace) from Redis settings (under Spring Boot's `spring.data.redis.*` namespace) and MUST NOT hardcode connection URLs in the base `application.yml`. Specifically:
 - The base `application.yml` SHALL contain an `app.mongo.database: <app_name>` value AND a `mongock.migration-scan-package` value pointing at `<tld>.<author>.<app_name>.persistence.migration`. It SHALL NOT contain a hardcoded `app.mongo.uri`.
 - The base `application.yml` SHALL contain a `spring.data.redis.*` block with at minimum a `timeout` set to a value well under Spring Boot's 60-second default (to fail fast on Redis outages) and SHALL NOT contain hardcoded `spring.data.redis.host` or `spring.data.redis.port` values.
 - The rendered `application-local.yml` SHALL supply `app.mongo.uri: mongodb://root:root@mongo:27017/<app_name>?authSource=admin` and `spring.data.redis.host: redis` and `spring.data.redis.port: 6379`, pointing at the compose service names.
@@ -104,7 +104,7 @@ The `project.json` SHALL define the prompts `tld`, `author`, `app_name`, `versio
 #### Scenario: Default profile produces output equivalent to the pre-profile template
 - **WHEN** the template is generated with `stack_profile=default` and all other defaults accepted
 - **THEN** the rendered project's Kotlin source tree, `build.gradle.kts`, `application.yml`, `application-local.yml`, `Dockerfile`, and `local/docker/docker-compose.yml` contain no JPA, Hibernate, Flyway, Postgres driver, Testcontainers Postgres, `postgres` compose service, Mongo driver, Spring Data Redis, Mongock, Testcontainers Mongo, `mongo` compose service, or `redis` compose service references
-- **AND** `./gradlew dependencies` reports no `spring-boot-starter-data-jpa`, `flyway-core`, `flyway-database-postgresql`, `org.postgresql:postgresql`, `org.testcontainers:postgresql`, `mongodb-driver-kotlin-sync`, `spring-boot-starter-data-redis`, `mongock-springboot-v3`, `mongodb-sync-v4-driver`, or `testcontainers:mongodb` on any configuration
+- **AND** `./gradlew dependencies` reports no `spring-boot-starter-data-jpa`, `flyway-core`, `flyway-database-postgresql`, `org.postgresql:postgresql`, `org.testcontainers:postgresql`, `mongodb-driver-sync`, `spring-boot-starter-data-redis`, `mongock-springboot-v3`, `mongodb-sync-v4-driver`, or `testcontainers:mongodb` on any configuration
 - **AND** documentation files such as the rendered `README.md` MAY mention `relational-db` or `nosql-cache` as a discoverability hint (e.g. in a "Trade-offs" section pointing users at the alternative profiles) — documentation is explicitly exempt from this byte-equivalence requirement
 
 ### Requirement: docker-compose stack brings up service, LocalStack, and OTel collector

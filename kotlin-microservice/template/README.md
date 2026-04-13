@@ -12,7 +12,7 @@ A Kotlin + Spring Boot microservice generated from the `kotlin-microservice` boi
 - **Persistence**: Spring Data JPA + Hibernate, Flyway migrations, PostgreSQL {{postgres_image_tag}}; Testcontainers Postgres for integration tests
 {{- end }}
 {{- if eq stack_profile "nosql-cache" }}
-- **Persistence**: raw MongoDB Kotlin sync driver ({{mongo_driver_version}}), Mongock ({{mongock_version}}) migrations — **not** Spring Data MongoDB
+- **Persistence**: raw MongoDB Java sync driver (version managed by Spring Boot BOM), Mongock ({{mongock_version}}) migrations — **not** Spring Data MongoDB
 - **Cache**: Spring Data Redis (Lettuce client) with a `StringRedisTemplate`-backed cache-aside helper
 - **Testing**: Testcontainers MongoDB + generic Redis container for integration tests
 {{- end }}
@@ -77,7 +77,7 @@ OpenTelemetry honors the standard env vars: `OTEL_EXPORTER_OTLP_ENDPOINT` (defau
 {{ if eq stack_profile "nosql-cache" }}
 ## Persistence and cache (nosql-cache profile)
 
-This project was generated with `stack_profile=nosql-cache`, which bundles the **raw MongoDB Kotlin sync driver** + **Mongock** migrations + **Spring Data Redis** (Lettuce).
+This project was generated with `stack_profile=nosql-cache`, which bundles the **raw MongoDB Java sync driver** + **Mongock** migrations + **Spring Data Redis** (Lettuce).
 
 **Deliberate asymmetry**: Mongo is the raw driver (no Spring Data MongoDB) because Spring Data Mongo's abstractions (`MongoTemplate`, derived queries, index auto-creation) cost more than they give for non-trivial documents. Redis uses the Spring Data starter because it's a thin wrapper that gives you `/actuator/health` and auto-config almost for free. If you want Spring Data MongoDB back, it's a one-line Gradle addition — the beans don't conflict with the driver beans.
 
@@ -120,7 +120,7 @@ This project was generated with `stack_profile=relational-db`, which bundles Spr
 - **No database layer** — this profile is HTTP + messaging only. If you need persistence, regenerate with `stack_profile=relational-db` (Spring Data JPA + Postgres + Flyway) or `stack_profile=nosql-cache` (raw Mongo driver + Redis + Mongock).
 {{- end }}
 {{- if eq stack_profile "nosql-cache" }}
-- **No Spring Data MongoDB** — the template uses the raw `mongodb-driver-kotlin-sync` on purpose (see "Persistence and cache" above). If you prefer repositories and `@Document`, add `spring-boot-starter-data-mongodb` to `build.gradle.kts`; it coexists with the driver beans.
+- **No Spring Data MongoDB** — the template uses the raw `mongodb-driver-sync` on purpose (see "Persistence and cache" above). If you prefer repositories and `@Document`, add `spring-boot-starter-data-mongodb` to `build.gradle.kts`; it coexists with the driver beans.
 - **No `@EnableCaching` / `@Cacheable`** — the template exposes a `SampleCache` helper over `StringRedisTemplate` directly. Add `spring-boot-starter-cache` + `@EnableCaching` if you want the declarative abstraction.
 - **Single-node Mongo, no transactions** — `mongock.transaction-enabled` is `false`. Mongo transactions require a replica set, which the local compose image does not run.
 {{- end }}

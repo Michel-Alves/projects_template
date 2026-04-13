@@ -1,7 +1,7 @@
 {{- if eq stack_profile "nosql-cache" }}
 package {{tld}}.{{author}}.{{app_name}}.persistence
 
-import com.mongodb.kotlin.client.MongoClient
+import com.mongodb.client.MongoClient
 import org.bson.Document
 import org.springframework.boot.actuate.health.Health
 import org.springframework.boot.actuate.health.HealthIndicator

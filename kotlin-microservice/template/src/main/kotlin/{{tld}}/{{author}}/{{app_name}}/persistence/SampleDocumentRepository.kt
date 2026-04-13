@@ -1,29 +1,36 @@
 {{- if eq stack_profile "nosql-cache" }}
 package {{tld}}.{{author}}.{{app_name}}.persistence
 
+import com.mongodb.client.MongoCollection
+import com.mongodb.client.MongoDatabase
 import com.mongodb.client.model.Filters
-import com.mongodb.kotlin.client.MongoCollection
-import com.mongodb.kotlin.client.MongoDatabase
+import org.bson.Document
 import org.springframework.stereotype.Component
 
 @Component
 class SampleDocumentRepository(db: MongoDatabase) {
 
-    private val collection: MongoCollection<SampleDocument> =
-        db.getCollection("sample_documents", SampleDocument::class.java)
+    private val collection: MongoCollection<Document> =
+        db.getCollection("sample_documents")
 
     fun findById(id: String): SampleDocument? =
-        collection.find(Filters.eq("_id", id)).firstOrNull()
+        collection.find(Filters.eq("_id", id)).first()?.toSampleDocument()
 
     fun findByName(name: String): SampleDocument? =
-        collection.find(Filters.eq("name", name)).firstOrNull()
+        collection.find(Filters.eq("name", name)).first()?.toSampleDocument()
 
     fun insert(doc: SampleDocument) {
-        collection.insertOne(doc)
+        collection.insertOne(doc.toBson())
     }
 
     fun deleteById(id: String) {
         collection.deleteOne(Filters.eq("_id", id))
     }
+
+    private fun SampleDocument.toBson(): Document =
+        Document("_id", id).append("name", name)
+
+    private fun Document.toSampleDocument(): SampleDocument =
+        SampleDocument(id = getString("_id"), name = getString("name"))
 }
 {{- end }}

@@ -16,6 +16,8 @@ class SampleDocumentService(
     }
 
     fun getByName(name: String): SampleDocument? {
+        // Cache stores only the id (StringRedisTemplate-backed). If SampleDocument grows
+        // new fields, either add JSON serialization here or switch to RedisTemplate<String, SampleDocument>.
         val cacheKey = "by-name:$name"
         cache.get(cacheKey)?.let { cachedId ->
             return SampleDocument(id = cachedId, name = name)

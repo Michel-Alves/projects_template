@@ -105,7 +105,7 @@ Keep the template simple at first: define the prompts in `project.json`, create 
 ## Current templates
 
 - [kotlin](./kotlin) — general-purpose Kotlin/Gradle template with `default`/`cli`/`web`/`db`/`web-db` stack profiles
-- [kotlin-microservice](./kotlin-microservice) — Spring Boot 3 microservice with Actuator, Micrometer/Prometheus, OpenTelemetry, Log4j2 JSON logging, AWS SDK v2 SNS/SQS, and a `docker-compose` LocalStack stack. Has an optional `relational-db` stack profile that bundles Spring Data JPA, PostgreSQL 16, Flyway, and Testcontainers Postgres.
+- [kotlin-microservice](./kotlin-microservice) — Spring Boot 3 microservice with Actuator, Micrometer/Prometheus, OpenTelemetry, Log4j2 JSON logging, AWS SDK v2 SNS/SQS, and a `docker-compose` LocalStack stack. Has two optional stack profiles: `relational-db` (Spring Data JPA + PostgreSQL 16 + Flyway + Testcontainers Postgres) and `nosql-cache` (raw MongoDB Java sync driver + Mongock + Spring Data Redis + Testcontainers Mongo/Redis).
 - [clojure](./clojure/README.md) — minimal Leiningen Clojure template
 
 ## Go further

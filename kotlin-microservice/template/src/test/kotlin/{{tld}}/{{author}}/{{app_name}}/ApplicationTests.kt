@@ -11,6 +11,13 @@ import org.springframework.test.context.TestPropertySource
     "aws.messaging.secret-key=test",
     "aws.messaging.queue-url=",
     "aws.messaging.topic-arn=",
+{{- if eq stack_profile "nosql-cache" }}
+    "app.mongo.uri=mongodb://localhost:27017/test",
+    "app.mongo.database=test",
+    "spring.data.redis.host=localhost",
+    "spring.data.redis.port=6379",
+    "mongock.enabled=false",
+{{- end }}
 ])
 class ApplicationTests {
 

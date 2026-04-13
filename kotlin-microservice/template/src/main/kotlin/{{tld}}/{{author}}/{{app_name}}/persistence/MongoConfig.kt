@@ -3,10 +3,9 @@ package {{tld}}.{{author}}.{{app_name}}.persistence
 
 import com.mongodb.ConnectionString
 import com.mongodb.MongoClientSettings
-import com.mongodb.kotlin.client.MongoClient
-import com.mongodb.kotlin.client.MongoDatabase
-import org.bson.codecs.configuration.CodecRegistries
-import org.bson.codecs.pojo.PojoCodecProvider
+import com.mongodb.client.MongoClient
+import com.mongodb.client.MongoClients
+import com.mongodb.client.MongoDatabase
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
@@ -24,17 +23,10 @@ class MongoConfig(private val properties: MongoProperties) {
 
     @Bean(destroyMethod = "close")
     fun mongoClient(): MongoClient {
-        val codecRegistry = CodecRegistries.fromRegistries(
-            MongoClientSettings.getDefaultCodecRegistry(),
-            CodecRegistries.fromProviders(
-                PojoCodecProvider.builder().automatic(true).build(),
-            ),
-        )
         val settings = MongoClientSettings.builder()
             .applyConnectionString(ConnectionString(properties.uri))
-            .codecRegistry(codecRegistry)
             .build()
-        return MongoClient.create(settings)
+        return MongoClients.create(settings)
     }
 
     @Bean

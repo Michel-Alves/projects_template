@@ -61,7 +61,7 @@ dependencies {
 {{- end }}
 {{- if eq stack_profile "nosql-cache" }}
 
-    implementation("org.mongodb:mongodb-driver-kotlin-sync:{{mongo_driver_version}}")
+    implementation("org.mongodb:mongodb-driver-sync")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")
     implementation("io.mongock:mongock-springboot-v3:{{mongock_version}}")
     implementation("io.mongock:mongodb-sync-v4-driver:{{mongock_version}}")
