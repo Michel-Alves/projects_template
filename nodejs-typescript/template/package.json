@@ -1,0 +1,106 @@
+{
+  "name": "{{app_name}}",
+  "version": "{{version}}",
+  "private": true,
+  "description": "{{app_name}} microservice",
+  "author": "{{author}}",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">={{node_version}}"
+  },
+  "scripts": {
+    "build": "nest build",
+{{- if eq stack_profile "relational-db" }}
+    "prebuild": "rimraf dist && prisma generate",
+{{- else }}
+    "prebuild": "rimraf dist",
+{{- end }}
+    "start": "node -r ./dist/tracing.js dist/main.js",
+    "start:dev": "nest start --watch --exec 'node -r ts-node/register -r tsconfig-paths/register -r ./src/tracing.ts'",
+    "start:debug": "nest start --debug --watch --exec 'node -r ts-node/register -r tsconfig-paths/register -r ./src/tracing.ts'",
+    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
+    "format": "prettier --write 'src/**/*.ts' 'test/**/*.ts'",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:e2e": "vitest run --project integration"
+{{- if eq stack_profile "relational-db" }},
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate"
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }},
+    "migrate:up": "migrate-mongo up",
+    "migrate:status": "migrate-mongo status"
+{{- end }}
+  },
+  "dependencies": {
+    "@nestjs/common": "^{{nestjs_version}}",
+    "@nestjs/config": "^3.3.0",
+    "@nestjs/core": "^{{nestjs_version}}",
+    "@nestjs/platform-express": "^{{nestjs_version}}",
+    "@nestjs/terminus": "^10.2.3",
+    "@willsoto/nestjs-prometheus": "^6.0.1",
+    "prom-client": "^15.1.3",
+    "nestjs-pino": "^{{nestjs_pino_version}}",
+    "pino": "^{{pino_version}}",
+    "pino-http": "^10.3.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-node": "^{{otel_sdk_version}}",
+    "@opentelemetry/auto-instrumentations-node": "^{{otel_auto_instrumentations_version}}",
+    "@opentelemetry/exporter-trace-otlp-http": "^{{otel_sdk_version}}",
+    "@opentelemetry/instrumentation-pino": "^{{otel_instrumentation_pino_version}}",
+    "@opentelemetry/resources": "^{{otel_resources_version}}",
+    "@opentelemetry/semantic-conventions": "^{{otel_semconv_version}}",
+    "@aws-sdk/client-sns": "^{{aws_sdk_version}}",
+    "@aws-sdk/client-sqs": "^{{aws_sdk_version}}",
+    "@aws-sdk/client-s3": "^{{aws_sdk_version}}",
+    "sqs-consumer": "^{{sqs_consumer_version}}",
+    "class-validator": "^0.14.1",
+    "class-transformer": "^0.5.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.23.8"
+{{- if eq stack_profile "relational-db" }},
+    "@prisma/client": "^{{prisma_version}}"
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }},
+    "mongodb": "^{{mongo_driver_version}}",
+    "migrate-mongo": "^{{migrate_mongo_version}}"
+{{- end }}
+{{- if or (eq stack_profile "relational-db") (eq stack_profile "nosql-cache") }},
+    "ioredis": "^{{ioredis_version}}"
+{{- end }}
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.5",
+    "@nestjs/schematics": "^10.2.3",
+    "@nestjs/testing": "^{{nestjs_version}}",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.12",
+    "@types/supertest": "^6.0.2",
+    "@typescript-eslint/eslint-plugin": "^8.12.2",
+    "@typescript-eslint/parser": "^8.12.2",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.3.3",
+    "rimraf": "^6.0.1",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^{{typescript_version}}",
+    "unplugin-swc": "^1.5.1",
+    "@swc/core": "^1.7.42",
+    "vitest": "^{{vitest_version}}",
+    "@vitest/coverage-v8": "^{{vitest_version}}",
+    "testcontainers": "^{{testcontainers_version}}"
+{{- if eq stack_profile "relational-db" }},
+    "prisma": "^{{prisma_version}}",
+    "@testcontainers/postgresql": "^{{testcontainers_version}}"
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }},
+    "@testcontainers/mongodb": "^{{testcontainers_version}}",
+    "@types/migrate-mongo": "^10.0.6"
+{{- end }}
+  }
+}

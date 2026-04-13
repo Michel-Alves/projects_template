@@ -82,7 +82,27 @@ Opinionated Spring Boot 3.x microservice template in Kotlin. Common bundle (ever
 
 The three profiles are mutually exclusive. Future profiles extend the same `stack_profile` array rather than introducing a new prompt.
 
-**Prompts** (`kotlin-microservice/project.json`): `tld`, `author`, `app_name`, `version`, `java_version`, `stack_profile`, plus version pins (`spring_boot_version`, `kotlin_version`, `gradle_version`, `aws_sdk_version`, `otel_version`, `log4j_version`, `micrometer_version`, `testcontainers_version`, `flyway_version`, `postgres_image_tag`, `mongo_image_tag`, `redis_image_tag`, `mongock_version`). Bump versions in one place by editing `project.json`.
+**Hexagonal layering (profile-agnostic, ArchUnit-enforced):** every generated project organizes Kotlin source into five packages under `<tld>.<author>.<app_name>`:
+
+| Layer | Purpose | May depend on |
+|---|---|---|
+| `commons` | Zero-dependency utilities (extractable as a library) | *(nothing project-internal)* |
+| `domain` | Entities, invariants, outbound ports. Framework-free (no Spring, JPA, Mongo, Spring Data, Mongock imports). | `commons` |
+| `application` | Use case services (`@Service`) orchestrating domain ports | `domain`, `commons` |
+| `infrastructure` | Adapters (`adapters/in/web`, `adapters/in/messaging`, `adapters/out/persistence`, `adapters/out/messaging`) + framework config (`config/`) | `application`, `domain`, `commons` |
+| `main` | `@SpringBootApplication`, bean wiring, bootstrap. Uses `scanBasePackages = ["<tld>.<author>.<app_name>"]` so component scan still reaches the siblings. | all |
+
+The rules are enforced at build time by `src/test/kotlin/.../architecture/ArchitectureTest.kt` using ArchUnit (`archunit-junit5`, version pinned via `archunit_version`). Violations fail `./gradlew test`. Specific rules: layered-architecture direction, no cycles, `commons` depends on nothing project-internal, `domain` rejects framework imports, `@RestController` must live in `infrastructure.adapters.in.web`, `@Entity`/`@Repository` must live in `infrastructure.adapters.out`.
+
+**Sample use case (profile-agnostic, outbound adapter varies by profile):** every profile ships a canonical `Sample` use case exposed at `POST /samples` / `GET /samples/{id}` through `SampleController` → `SampleService` → `SampleRepository` (domain port). The outbound persistence adapter is selected by `stack_profile`:
+
+- `default` → `InMemorySampleRepositoryAdapter` (`ConcurrentHashMap`).
+- `relational-db` → `JpaSampleRepositoryAdapter` in `infrastructure/adapters/out/persistence/jpa/`, with a separate `SampleJpaEntity` (annotated) and hand-written domain mapper — the domain `Sample` stays JPA-free. Flyway migration `V1__init.sql` creates the `sample` table.
+- `nosql-cache` → `MongoSampleRepositoryAdapter` in `infrastructure/adapters/out/persistence/mongo/`, which owns a `MongoCollection` and an internal `SampleCache` (Spring Data Redis `StringRedisTemplate`) and performs cache-aside **inside the adapter** — the application layer sees only the domain port. Mongock `@ChangeUnit` in the same package creates the sample-collection index.
+
+Per-profile integration tests live under `src/test/kotlin/.../infrastructure/adapters/out/persistence/{jpa,mongo}/` and exercise the adapter through the domain port (plus an end-to-end variant that drives `SampleController` via MockMvc for the relational-db profile). The default profile's test uses the in-memory adapter and requires no Docker.
+
+**Prompts** (`kotlin-microservice/project.json`): `tld`, `author`, `app_name`, `version`, `java_version`, `stack_profile`, plus version pins (`spring_boot_version`, `kotlin_version`, `gradle_version`, `aws_sdk_version`, `otel_version`, `log4j_version`, `micrometer_version`, `testcontainers_version`, `flyway_version`, `postgres_image_tag`, `mongo_image_tag`, `redis_image_tag`, `mongock_version`, `archunit_version`). Bump versions in one place by editing `project.json`.
 
 **Register and use:**
 
@@ -108,6 +128,56 @@ docker compose -f local/docker/docker-compose.yml up --build
 The compose stack and its supporting configs (LocalStack init, OTel collector) live under `local/docker/`. The root-level `Dockerfile` and `.dockerignore` are intentionally kept at the project root because they are production artifacts, not local-dev assets.
 
 This brings up the app, LocalStack (with an init script that creates the `<app_name>-events` topic + queue and subscribes them), and an OTel collector that prints spans to stdout.
+
+## Node.js/TypeScript microservice template
+
+Opinionated NestJS 10 microservice template in TypeScript. Common bundle (every profile): NestJS HTTP + DI, `nestjs-pino` JSON logging, `@willsoto/nestjs-prometheus` `/metrics` endpoint, `@nestjs/terminus` health endpoints, OpenTelemetry Node SDK + OTLP/HTTP exporter initialized via `--require ./dist/tracing.js` (load-order-sensitive — do NOT import from inside Nest code), AWS SDK v3 SNS publisher and `sqs-consumer`-backed SQS poller, an `S3BlobStorage` sample wrapping `@aws-sdk/client-s3` with a `POST /blobs` + `GET /blobs/:key` controller, a multi-stage `Dockerfile` at the project root, and a `local/docker/docker-compose.yml` running the service alongside LocalStack (SNS/SQS/**S3**) and an OpenTelemetry collector. Vitest + Testcontainers-node for integration tests.
+
+**Stack profiles** (selected via `stack_profile` prompt):
+
+| Profile | Extra dependencies |
+|---------|-------------------|
+| `default` | none — HTTP + messaging + S3 only |
+| `relational-db` | Prisma (schema + generated client + migration runner), PostgreSQL driver, `ioredis` cache-aside helper, `@testcontainers/postgresql` for integration tests. Adds `postgres:{{postgres_image_tag}}` and `redis:{{redis_image_tag}}` services to the compose stack with healthchecks; the `app` service waits on both. Ships a Prisma `SampleEntity`, an initial migration, a `PrismaService`, a repository, a cache-aside `SampleEntityService`, and a Testcontainers-backed integration test. |
+| `nosql-cache` | **Raw** `mongodb` Node driver (**not** Mongoose), `migrate-mongo` for migrations, `ioredis` cache-aside helper, `@testcontainers/mongodb` + generic Redis container for integration tests. Adds `mongo:{{mongo_image_tag}}` and `redis:{{redis_image_tag}}` services with healthchecks; the `app` service waits on both. Ships a `SampleDocument` interface, a repository wrapping a `Collection<SampleDocument>`, a `migrate-mongo` migration creating the `samples` collection + index, a `SampleCache`, a cache-aside `SampleDocumentService`, a hand-wired `MongoHealthIndicator`, and a Testcontainers integration test exercising the full cache-aside flow. **Deliberate asymmetry**: raw Mongo driver but `ioredis` wrapped in a Nest `CacheModule`-style provider — the Mongo abstractions aren't worth their cost, the Redis wrapper is. Mongo config is under `app.mongo.*` (not a well-known key) because there is no Spring-Data-Mongo analogue to auto-wire. |
+
+The three profiles are mutually exclusive. Future profiles extend the same `stack_profile` array rather than introducing a new prompt.
+
+**Deliberate divergences from `kotlin-microservice/`:**
+
+1. **S3 sample ships in every profile**, not profile-gated — `S3BlobStorage` + `POST /blobs` + `GET /blobs/:key` wire a LocalStack S3 bucket into the common bundle. The LocalStack init script creates the bucket alongside the topic, queue, and subscription.
+2. **Redis cache is present in `relational-db` too**, not just `nosql-cache`. The `SampleCache` + `RedisHealthIndicator` files live under `src/cache/` and are gated by a single `{{if or (eq stack_profile "relational-db") (eq stack_profile "nosql-cache")}}` condition so the Redis code is written once and shared.
+3. **NestJS CLI's default Jest runner is overridden to Vitest**, with a `vitest.config.ts` defining separate `unit` and `integration` projects. Generated projects diverge from NestJS docs in this one area.
+4. **CommonJS output** (not ESM). NestJS + Prisma + OTel + Vitest ESM integration is still rough enough that CJS is the stable choice.
+
+**Prompts** (`nodejs-typescript/project.json`): `tld`, `author`, `app_name`, `version`, `stack_profile`, plus version pins (`node_version`, `typescript_version`, `nestjs_version`, `aws_sdk_version`, `otel_version`, `otel_sdk_version`, `pino_version`, `nestjs_pino_version`, `prisma_version`, `mongo_driver_version`, `migrate_mongo_version`, `ioredis_version`, `testcontainers_version`, `vitest_version`, `sqs_consumer_version`, `postgres_image_tag`, `mongo_image_tag`, `redis_image_tag`, `localstack_image_tag`). Bump versions in one place by editing `project.json`.
+
+**IMPORTANT — version bumps:** when upgrading a shared dependency (AWS SDK, OTel, Postgres/Mongo/Redis image tags, Testcontainers), update **both** `kotlin-microservice/project.json` and `nodejs-typescript/project.json` so the two templates stay in lockstep. This is a known maintenance tax — accepted in exchange for stack parity.
+
+**Register and use:**
+
+```bash
+boilr template save ./nodejs-typescript nodejs-typescript
+boilr template use nodejs-typescript ~/Workspace/my-svc
+```
+
+**Install dependencies and run after generating:**
+
+```bash
+cd ~/Workspace/my-svc
+npm ci
+# relational-db profile only:
+npx prisma generate
+npm run start:dev
+```
+
+**Run the full local stack:**
+
+```bash
+docker compose -f local/docker/docker-compose.yml up --build
+```
+
+The compose stack, its supporting configs (LocalStack init, OTel collector), and the compose file itself live under `local/docker/`. The root-level `Dockerfile` and `.dockerignore` are intentionally kept at the project root because they are production artifacts, not local-dev assets.
 
 ## Clojure template
 

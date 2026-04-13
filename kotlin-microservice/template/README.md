@@ -21,6 +21,28 @@ A Kotlin + Spring Boot microservice generated from the `kotlin-microservice` boi
 
 Stack profile: **{{stack_profile}}**.
 
+## Layering (hexagonal)
+
+Source is organized into five layer packages under `{{tld}}.{{author}}.{{app_name}}`, enforced at build time by ArchUnit (see `src/test/kotlin/.../architecture/ArchitectureTest.kt`):
+
+| Layer | Purpose | May depend on |
+|---|---|---|
+| `commons` | Zero-dependency utilities; extractable as a library | *(nothing project-internal)* |
+| `domain` | Entities, invariants, outbound ports. **No framework imports.** | `commons` |
+| `application` | Use case services orchestrating ports (`@Service`) | `domain`, `commons` |
+| `infrastructure` | Adapters (`in/web`, `in/messaging`, `out/persistence`, `out/messaging`) + framework config | `application`, `domain`, `commons` |
+| `main` | `@SpringBootApplication`, bean wiring, bootstrap | all |
+
+**Sample use case**: `POST /samples {"name": "..."}` and `GET /samples/{id}`, wired as `SampleController` → `SampleService` → `SampleRepository` (domain port). The outbound adapter is selected by `stack_profile`:
+
+| Profile | Outbound adapter | Backing store |
+|---|---|---|
+| `default` | `InMemorySampleRepositoryAdapter` | `ConcurrentHashMap` |
+| `relational-db` | `JpaSampleRepositoryAdapter` (+ `SampleJpaEntity`, `SampleJpaRepository`) | Postgres via Flyway-migrated `sample` table |
+| `nosql-cache` | `MongoSampleRepositoryAdapter` (with internal `SampleCache` / Redis cache-aside) | Mongo via Mongock-migrated `sample` collection |
+
+The application layer sees a single `SampleRepository` port regardless of profile — caching, JPA mapping, and Mongo conversions all live inside the adapter.
+
 ## First-run setup
 
 This step is only needed if you want to run `./gradlew` directly (e.g. `./gradlew bootRun` or `./gradlew test`). If you only ever run the service through `docker compose`, you can skip it — the `Dockerfile` builds inside a `gradle:{{gradle_version}}-jdk{{java_version}}` image and brings its own gradle.
@@ -81,14 +103,13 @@ This project was generated with `stack_profile=nosql-cache`, which bundles the *
 
 **Deliberate asymmetry**: Mongo is the raw driver (no Spring Data MongoDB) because Spring Data Mongo's abstractions (`MongoTemplate`, derived queries, index auto-creation) cost more than they give for non-trivial documents. Redis uses the Spring Data starter because it's a thin wrapper that gives you `/actuator/health` and auto-config almost for free. If you want Spring Data MongoDB back, it's a one-line Gradle addition — the beans don't conflict with the driver beans.
 
-- **Mongo wiring**: `src/main/kotlin/{{tld}}/{{author}}/{{app_name}}/persistence/MongoConfig.kt` reads `app.mongo.uri` / `app.mongo.database` (custom namespace, **not** `spring.data.mongodb.*`) and exposes `MongoClient` + `MongoDatabase` beans. The client is built with a POJO codec registry so Kotlin data classes round-trip through `MongoCollection<T>`.
-- **Mongo health**: `MongoHealthIndicator` is hand-wired (there's no auto-config without Spring Data Mongo). Redis health comes for free from Spring Data Redis.
-- **Sample document**: `SampleDocument` is a plain Kotlin `data class`. **Every field has a default value** — this is required so the POJO codec's no-arg constructor path works (Kotlin `data class` doesn't emit a synthetic no-arg constructor by default). If you don't want defaults on your own documents, add the `kotlin-noarg` Gradle plugin.
-- **Repository**: `SampleDocumentRepository` wraps a `MongoCollection<SampleDocument>` with driver API calls — no repository interface inheritance.
-- **Migrations**: Mongock `@ChangeUnit` classes live in `persistence/migration/` and receive a `MongoDatabase` parameter. `V001__create_sample_index` is the seed migration. Transactions are disabled (`mongock.transaction-enabled: false`) because single-node Mongo doesn't support them.
-- **Cache-aside pattern**: `SampleDocumentService.getByName` checks `SampleCache` first, falls through to Mongo on miss, and writes the id back into Redis. `SampleCache` wraps `StringRedisTemplate` with a `sample:` key prefix and a 5-minute TTL.
+- **Mongo wiring**: `infrastructure/config/MongoConfig.kt` reads `app.mongo.uri` / `app.mongo.database` (custom namespace, **not** `spring.data.mongodb.*`) and exposes `MongoClient` + `MongoDatabase` beans.
+- **Mongo health**: `infrastructure/config/MongoHealthIndicator.kt` is hand-wired. Redis health comes for free from Spring Data Redis.
+- **Adapter**: `infrastructure/adapters/out/persistence/mongo/MongoSampleRepositoryAdapter.kt` implements `domain.sample.SampleRepository`. It owns a `MongoCollection<Document>` and a `SampleCache` and does cache-aside **internally**: `save` upserts to Mongo and write-through-populates Redis; `findById` checks Redis first, falls through to Mongo on miss, and populates the cache. The application layer sees only the domain port — it has no idea a cache exists.
+- **Cache**: `infrastructure/adapters/out/persistence/mongo/SampleCache.kt` wraps `StringRedisTemplate` with a `sample:` key prefix and a 5-minute TTL. Treated as an adapter-internal detail.
+- **Migrations**: Mongock `@ChangeUnit` classes live in `infrastructure/adapters/out/persistence/mongo/migration/` and receive a `MongoDatabase` parameter. `V001__create_sample_index` creates a unique index on `name` in the `sample` collection. Transactions are disabled (`mongock.transaction-enabled: false`) because single-node Mongo doesn't support them.
 - **Local dev** uses the `mongo` and `redis` services in `local/docker/docker-compose.yml`. The `local` Spring profile points `app.mongo.uri` at `mongodb://root:root@mongo:27017/{{app_name}}?authSource=admin` and `spring.data.redis.host` at `redis`. Override in deployed envs via `APP_MONGO_URI`, `APP_MONGO_DATABASE`, `SPRING_DATA_REDIS_HOST`, `SPRING_DATA_REDIS_PORT`, `SPRING_DATA_REDIS_PASSWORD`.
-- **Integration test**: `SampleDocumentRepositoryIntegrationTest` boots `MongoDBContainer` + `GenericContainer("redis:{{redis_image_tag}}")`, wires them via `@DynamicPropertySource`, and exercises the full cache-aside flow. Requires Docker.
+- **Integration test**: `MongoSampleRepositoryAdapterIntegrationTest` boots `MongoDBContainer` + `GenericContainer("redis:{{redis_image_tag}}")`, wires them via `@DynamicPropertySource`, and exercises the adapter through the domain port to prove the cache-aside flow (save → cache hit → underlying doc deleted → cache still serves → evict → null). Requires Docker.
 - **Redis timeout** is set to `2s` in `application.yml` to fail fast on outages (Spring Boot's default is 60s).
 
 {{ end }}
@@ -97,12 +118,13 @@ This project was generated with `stack_profile=nosql-cache`, which bundles the *
 
 This project was generated with `stack_profile=relational-db`, which bundles Spring Data JPA + Hibernate, Flyway migrations, and the PostgreSQL JDBC driver on the main classpath, plus Testcontainers Postgres on the test classpath.
 
-- **Sample entity**: `src/main/kotlin/{{tld}}/{{author}}/{{app_name}}/persistence/SampleEntity.kt` — an intentionally minimal `@Entity` (autogenerated `Long` id + `name` field). Replace it with your real domain.
-- **Repository**: `src/main/kotlin/{{tld}}/{{author}}/{{app_name}}/persistence/SampleRepository.kt` — `JpaRepository<SampleEntity, Long>`.
-- **Migrations**: `src/main/resources/db/migration/V1__init.sql` creates the `sample_entity` table. Add `V2__*.sql`, `V3__*.sql`, etc. as your schema evolves.
+- **JPA entity**: `infrastructure/adapters/out/persistence/jpa/SampleJpaEntity.kt` — autogenerated `Long id`, unique `external_id` holding the domain `SampleId`, `name` column. The domain `Sample` class is intentionally JPA-free; mapping happens in the adapter.
+- **Spring Data repository**: `infrastructure/adapters/out/persistence/jpa/SampleJpaRepository.kt` — `JpaRepository<SampleJpaEntity, Long>` with `findByExternalId`. Scoped to the package; the application layer never imports it.
+- **Adapter**: `JpaSampleRepositoryAdapter` implements `domain.sample.SampleRepository` and does upsert-by-externalId with hand-written `toDomain` mapping.
+- **Migrations**: `src/main/resources/db/migration/V1__init.sql` creates the `sample` table. Add `V2__*.sql`, `V3__*.sql`, etc. as your schema evolves.
 - **Hibernate `ddl-auto`** is set to `validate` in `application.yml`, so schema/entity drift fails at startup. `open-in-view` is disabled.
-- **Local dev** uses the `postgres` service in `local/docker/docker-compose.yml` (image `postgres:{{postgres_image_tag}}`). The `local` Spring profile (`application-local.yml`) points `spring.datasource.url` at `jdbc:postgresql://postgres:5432/{{app_name}}` with user/password `{{app_name}}`/`{{app_name}}`. Override any of these via the standard `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` env vars in deployed environments.
-- **Integration test**: `SampleRepositoryIntegrationTest` uses Testcontainers' `PostgreSQLContainer` and `@DynamicPropertySource` to boot a real Postgres 16 per test class. Requires Docker.
+- **Local dev** uses the `postgres` service in `local/docker/docker-compose.yml`. The `local` Spring profile (`application-local.yml`) points `spring.datasource.url` at `jdbc:postgresql://postgres:5432/{{app_name}}` with user/password `{{app_name}}`/`{{app_name}}`. Override via standard `SPRING_DATASOURCE_*` env vars in deployed environments.
+- **Integration test**: `JpaSampleRepositoryAdapterIntegrationTest` uses Testcontainers' `PostgreSQLContainer` with `@AutoConfigureMockMvc` and exercises `POST /samples` → `GET /samples/{id}` end-to-end through the REST adapter. Requires Docker.
 
 {{ end }}
 ## Tests

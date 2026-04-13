@@ -1,0 +1,21 @@
+{{- if eq stack_profile "relational-db" }}
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SampleEntity {
+  id        String   @id @default(uuid())
+  name      String
+  payload   String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sample_entity")
+}
+{{- end }}

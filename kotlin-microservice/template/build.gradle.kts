@@ -74,6 +74,8 @@ dependencies {
     testImplementation("io.mockk:mockk:1.13.13")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:localstack")
+    testImplementation("com.tngtech.archunit:archunit-junit5:{{archunit_version}}")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 {{- if eq stack_profile "relational-db" }}
     testImplementation("org.testcontainers:postgresql")
 {{- end }}

@@ -1,0 +1,136 @@
+services:
+  app:
+    # project root: Dockerfile + src/ live one level up so the prod Dockerfile sees the source tree
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: {{app_name}}:dev
+    depends_on:
+      localstack:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+{{- if eq stack_profile "relational-db" }}
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+{{- end }}
+    environment:
+      PORT: "8080"
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      APP_SNS_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:{{app_name}}-events
+      APP_SQS_QUEUE_URL: http://localstack:4566/000000000000/{{app_name}}-events-queue
+      APP_S3_BUCKET: {{app_name}}-blobs
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_SERVICE_NAME: {{app_name}}
+{{- if eq stack_profile "relational-db" }}
+      DATABASE_URL: postgresql://{{app_name}}:{{app_name}}@postgres:5432/{{app_name}}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+      APP_MONGO_URI: mongodb://root:root@mongo:27017
+      APP_MONGO_DATABASE: {{app_name}}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+{{- end }}
+    ports:
+      - "8080:8080"
+
+  localstack:
+    image: localstack/localstack:{{localstack_image_tag}}
+    environment:
+      SERVICES: sns,sqs,s3
+      DEBUG: "0"
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "4566:4566"
+    entrypoint: >
+      /bin/sh -c "chmod +x /etc/localstack/init/ready.d/*.sh 2>/dev/null || true; exec docker-entrypoint.sh"
+    volumes:
+      - ./localstack/init:/etc/localstack/init/ready.d
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otel-collector/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+{{- if eq stack_profile "relational-db" }}
+
+  postgres:
+    image: postgres:{{postgres_image_tag}}
+    environment:
+      POSTGRES_DB: {{app_name}}
+      POSTGRES_USER: {{app_name}}
+      POSTGRES_PASSWORD: {{app_name}}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{app_name}} -d {{app_name}}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:{{redis_image_tag}}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+
+  mongo:
+    image: mongo:{{mongo_image_tag}}
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:{{redis_image_tag}}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mongo-data:
+{{- end }}

@@ -1,0 +1,3 @@
+{{- if eq stack_profile "relational-db" }}
+provider = "postgresql"
+{{- end }}

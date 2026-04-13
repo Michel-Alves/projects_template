@@ -1,0 +1,36 @@
+{
+    "version": "0.1.0",
+    "node_version": "20",
+    "typescript_version": "5.6.3",
+    "nestjs_version": "10.4.7",
+    "aws_sdk_version": "3.682.0",
+    "otel_auto_instrumentations_version": "0.72.0",
+    "otel_instrumentation_pino_version": "0.60.0",
+    "otel_sdk_version": "0.214.0",
+    "otel_resources_version": "2.6.1",
+    "otel_semconv_version": "1.37.0",
+    "pino_version": "9.5.0",
+    "nestjs_pino_version": "4.1.0",
+    "prisma_version": "5.22.0",
+    "mongo_driver_version": "6.10.0",
+    "migrate_mongo_version": "11.0.0",
+    "ioredis_version": "5.4.1",
+    "testcontainers_version": "10.13.2",
+    "vitest_version": "2.1.4",
+    "sqs_consumer_version": "11.2.0",
+    "postgres_image_tag": "16-alpine",
+    "mongo_image_tag": "7",
+    "redis_image_tag": "7-alpine",
+    "localstack_image_tag": "3.8",
+    "tld": [
+        "com",
+        "org"
+    ],
+    "author": "michelsilves",
+    "app_name": "myservice",
+    "stack_profile": [
+        "default",
+        "relational-db",
+        "nosql-cache"
+    ]
+}
