@@ -1,0 +1,46 @@
+services:
+  app:
+    # project root: Dockerfile + src/ live one level up so the prod Dockerfile sees the source tree
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    image: {{app_name}}:dev
+    depends_on:
+      localstack:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      AWS_MESSAGING_ENDPOINT_OVERRIDE: http://localstack:4566
+      AWS_MESSAGING_TOPIC_ARN: arn:aws:sns:us-east-1:000000000000:{{app_name}}-events
+      AWS_MESSAGING_QUEUE_URL: http://localstack:4566/000000000000/{{app_name}}-events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_SERVICE_NAME: {{app_name}}
+    ports:
+      - "8080:8080"
+
+  localstack:
+    image: localstack/localstack:3.8
+    environment:
+      SERVICES: sns,sqs
+      DEBUG: "0"
+      AWS_DEFAULT_REGION: us-east-1
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./localstack/init:/etc/localstack/init/ready.d
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.110.0
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./otel-collector/config.yaml:/etc/otel-collector/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"

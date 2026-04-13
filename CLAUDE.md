@@ -68,6 +68,37 @@ gradle run
 
 **Versions (defined in `kotlin/project.json`):** Gradle 8.12.1, Kotlin 2.1.10, JUnit 5.10.0.
 
+## Kotlin microservice template
+
+Single-shape template (no `stack_profile`) for a Spring Boot 3.x microservice in Kotlin. Opinionated bundle: Spring Boot Web + Actuator, Micrometer + Prometheus, OpenTelemetry SDK + OTLP exporter, Log4j2 with `JsonTemplateLayout` (Logback excluded), AWS SDK v2 SNS publisher and SQS poller, multi-stage `Dockerfile` at the project root (production runtime image), and a `local/docker/docker-compose.yml` running the service alongside LocalStack (SNS/SQS) and an OpenTelemetry collector for local development.
+
+**Prompts** (`kotlin-microservice/project.json`): `tld`, `author`, `app_name`, `version`, `java_version`, plus version pins (`spring_boot_version`, `kotlin_version`, `gradle_version`, `aws_sdk_version`, `otel_version`, `log4j_version`, `micrometer_version`, `testcontainers_version`). Bump versions in one place by editing `project.json`.
+
+**Register and use:**
+
+```bash
+boilr template save ./kotlin-microservice kotlin-microservice
+boilr template use kotlin-microservice ~/Workspace/my-svc
+```
+
+**Bootstrap the wrapper after generating** (the template ships only `gradle-wrapper.properties`):
+
+```bash
+cd ~/Workspace/my-svc
+gradle wrapper --gradle-version <gradle_version>
+./gradlew bootRun
+```
+
+**Run the full local stack:**
+
+```bash
+docker compose -f local/docker/docker-compose.yml up --build
+```
+
+The compose stack and its supporting configs (LocalStack init, OTel collector) live under `local/docker/`. The root-level `Dockerfile` and `.dockerignore` are intentionally kept at the project root because they are production artifacts, not local-dev assets.
+
+This brings up the app, LocalStack (with an init script that creates the `<app_name>-events` topic + queue and subscribes them), and an OTel collector that prints spans to stdout.
+
 ## Clojure template
 
 Minimal template — single `default` profile, Leiningen project, Clojure only.

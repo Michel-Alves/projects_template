@@ -1,0 +1,19 @@
+{
+    "version": "0.1.0",
+    "java_version": "21",
+    "kotlin_version": "2.1.10",
+    "gradle_version": "8.12.1",
+    "spring_boot_version": "3.3.5",
+    "spring_dependency_management_version": "1.1.6",
+    "aws_sdk_version": "2.28.16",
+    "otel_version": "2.9.0",
+    "log4j_version": "2.24.1",
+    "micrometer_version": "1.13.6",
+    "testcontainers_version": "1.20.3",
+    "tld": [
+        "com",
+        "org"
+    ],
+    "author": "michelsilves",
+    "app_name": "myservice"
+}

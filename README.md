@@ -11,6 +11,7 @@ git clone https://github.com/Michel-Alves/projects_template.git
 cd projects_template
 
 boilr template save ./kotlin kotlin
+boilr template save ./kotlin-microservice kotlin-microservice
 boilr template save ./clojure clojure
 ```
 
@@ -103,8 +104,9 @@ Keep the template simple at first: define the prompts in `project.json`, create 
 
 ## Current templates
 
-- [kotlin](./kotlin)
-- [clojure](./clojure/README.md)
+- [kotlin](./kotlin) — general-purpose Kotlin/Gradle template with `default`/`cli`/`web`/`db`/`web-db` stack profiles
+- [kotlin-microservice](./kotlin-microservice) — Spring Boot 3 microservice with Actuator, Micrometer/Prometheus, OpenTelemetry, Log4j2 JSON logging, AWS SDK v2 SNS/SQS, and a `docker-compose` LocalStack stack
+- [clojure](./clojure/README.md) — minimal Leiningen Clojure template
 
 ## Go further
 

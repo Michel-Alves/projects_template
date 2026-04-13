@@ -1,0 +1,13 @@
+aws:
+  messaging:
+    region: us-east-1
+    endpoint-override: http://localhost:4566
+    access-key: test
+    secret-key: test
+    topic-arn: arn:aws:sns:us-east-1:000000000000:{{app_name}}-events
+    queue-url: http://localhost:4566/000000000000/{{app_name}}-events
+
+otel:
+  exporter:
+    otlp:
+      endpoint: http://localhost:4317
