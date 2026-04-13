@@ -11,3 +11,24 @@ otel:
   exporter:
     otlp:
       endpoint: http://localhost:4317
+{{- if eq stack_profile "relational-db" }}
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/{{app_name}}
+    username: {{app_name}}
+    password: {{app_name}}
+    driver-class-name: org.postgresql.Driver
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+
+spring:
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+app:
+  mongo:
+    uri: mongodb://root:root@mongo:27017/{{app_name}}?authSource=admin
+{{- end }}

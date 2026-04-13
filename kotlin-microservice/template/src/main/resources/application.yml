@@ -1,6 +1,31 @@
 spring:
   application:
     name: {{app_name}}
+{{- if eq stack_profile "relational-db" }}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    show-sql: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+  data:
+    redis:
+      timeout: 2s
+
+app:
+  mongo:
+    database: {{app_name}}
+
+mongock:
+  migration-scan-package: {{tld}}.{{author}}.{{app_name}}.persistence.migration
+  transaction-enabled: false
+{{- end }}
 
 server:
   port: 8080

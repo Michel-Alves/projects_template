@@ -52,6 +52,20 @@ dependencies {
     implementation("software.amazon.awssdk:sqs")
 
     implementation("org.apache.logging.log4j:log4j-layout-template-json:$log4jVersion")
+{{- if eq stack_profile "relational-db" }}
+
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql:{{flyway_version}}")
+    runtimeOnly("org.postgresql:postgresql")
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+
+    implementation("org.mongodb:mongodb-driver-kotlin-sync:{{mongo_driver_version}}")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    implementation("io.mongock:mongock-springboot-v3:{{mongock_version}}")
+    implementation("io.mongock:mongodb-sync-v4-driver:{{mongock_version}}")
+{{- end }}
 
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(group = "org.junit.vintage", module = "junit-vintage-engine")
@@ -60,6 +74,12 @@ dependencies {
     testImplementation("io.mockk:mockk:1.13.13")
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:localstack")
+{{- if eq stack_profile "relational-db" }}
+    testImplementation("org.testcontainers:postgresql")
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+    testImplementation("org.testcontainers:mongodb")
+{{- end }}
 }
 
 kotlin {

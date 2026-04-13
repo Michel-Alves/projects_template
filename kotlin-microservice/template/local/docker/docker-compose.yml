@@ -10,6 +10,16 @@ services:
         condition: service_healthy
       otel-collector:
         condition: service_started
+{{- if eq stack_profile "relational-db" }}
+      postgres:
+        condition: service_healthy
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+{{- end }}
     environment:
       SPRING_PROFILES_ACTIVE: local
       AWS_MESSAGING_ENDPOINT_OVERRIDE: http://localstack:4566
@@ -44,3 +54,54 @@ services:
     ports:
       - "4317:4317"
       - "4318:4318"
+{{- if eq stack_profile "relational-db" }}
+
+  postgres:
+    image: postgres:{{postgres_image_tag}}
+    environment:
+      POSTGRES_DB: {{app_name}}
+      POSTGRES_USER: {{app_name}}
+      POSTGRES_PASSWORD: {{app_name}}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{app_name}} -d {{app_name}}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+{{- end }}
+{{- if eq stack_profile "nosql-cache" }}
+
+  mongo:
+    image: mongo:{{mongo_image_tag}}
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:{{redis_image_tag}}
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mongo-data:
+{{- end }}

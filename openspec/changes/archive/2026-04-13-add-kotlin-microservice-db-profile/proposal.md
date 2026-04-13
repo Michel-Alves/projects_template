@@ -13,8 +13,8 @@ The `kotlin-microservice/` template currently has no persistence layer — teams
   - A sample `@Entity`, a `JpaRepository<Entity, Long>`, and a `V1__init.sql` Flyway migration
   - A Spring `DataSource` health indicator already exposed via Actuator (no extra code; comes with JPA)
   - Testcontainers `postgresql` module + a `@SpringBootTest` integration test that uses `@DynamicPropertySource` to point Spring at a Postgres container
-- Conditional templating in `build.gradle.kts`, `application.yml`, `application-local.yml`, `Application.kt` (no-op — JPA auto-configures), `docker-compose.yml`, and `Dockerfile` (none) to switch the new pieces on for `relational-db` only.
-- `docker-compose.yml` (when profile is `relational-db`) gains a `postgres` service (`postgres:16-alpine`, named volume, env-var creds), and the `app` service depends on it being healthy. The `local` Spring profile points the JPA datasource at it.
+- Conditional templating in `build.gradle.kts`, `application.yml`, `application-local.yml`, `Application.kt` (no-op — JPA auto-configures), and `local/docker/docker-compose.yml` to switch the new pieces on for `relational-db` only. The root-level `Dockerfile` does not change — JPA, Hibernate, the Postgres driver, and Flyway are all on the classpath when the profile is selected, so the same fat jar runs in both shapes without Dockerfile branching.
+- `local/docker/docker-compose.yml` (when profile is `relational-db`) gains a `postgres` service (`postgres:16-alpine`, named volume, env-var creds), and the `app` service depends on it being healthy. The `local` Spring profile points the JPA datasource at it.
 - Repo docs updated: `CLAUDE.md` and `README.md` document the new `stack_profile` prompt and the `relational-db` shape; the rendered template's `README.md` adapts based on the chosen profile.
 - **No removal of existing behavior.** Choosing `default` produces exactly the same output as today.
 
@@ -33,7 +33,7 @@ The `kotlin-microservice/` template currently has no persistence layer — teams
   - `kotlin-microservice/template/build.gradle.kts` — conditional `dependencies { ... }` block for the JPA/Postgres/Flyway/Testcontainers-postgres deps.
   - `kotlin-microservice/template/src/main/resources/application.yml` — conditional `spring.datasource.*`, `spring.jpa.*`, `spring.flyway.*` blocks.
   - `kotlin-microservice/template/src/main/resources/application-local.yml` — conditional Postgres datasource pointing at the compose Postgres service.
-  - `kotlin-microservice/template/docker-compose.yml` — conditional `postgres` service + `depends_on` wiring on `app`.
+  - `kotlin-microservice/template/local/docker/docker-compose.yml` — conditional `postgres` service + `depends_on` wiring on `app`. (The compose file was relocated under `local/docker/` by a sibling change that landed first; this change targets the new path.)
   - `kotlin-microservice/template/README.md` — conditional sections describing JPA/Flyway/Postgres when the profile is enabled.
   - `CLAUDE.md` and root `README.md` — document the new `stack_profile` prompt.
 - **New files in this repo** (only rendered when `stack_profile=relational-db`):

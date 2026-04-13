@@ -7,7 +7,7 @@ The repo's other Kotlin template (`kotlin/`) already uses `stack_profile` with a
 Constraints inherited from the existing `kotlin-microservice/` template:
 - Path templating works in both file contents and file/directory names; conditional blocks use `{{ if eq stack_profile "relational-db" }}...{{ end }}` (same syntax already used by `kotlin/template/build.gradle.kts`).
 - The Dockerfile uses `gradle:{{gradle_version}}-jdk{{java_version}}` and runs `gradle bootJar` directly — no wrapper bootstrap. Nothing about JPA changes that.
-- The `local` Spring profile is the integration point with `docker-compose.yml`. Adding Postgres means adding a service to compose AND adding a `spring.datasource.*` block to `application-local.yml`.
+- The `local` Spring profile is the integration point with `local/docker/docker-compose.yml` (the compose file lives under `local/docker/` after a sibling change relocated it). Adding Postgres means adding a service to that compose file AND adding a `spring.datasource.*` block to `application-local.yml`.
 - Versions are pinned in `project.json` so a single PR can bump them.
 - Tests that need a real backend (LocalStack today) require Docker. Adding Testcontainers Postgres doesn't change that contract.
 
@@ -65,7 +65,7 @@ Stakeholders: same as the parent change — the template author and downstream s
 - **Alternatives considered**: H2 in-memory (rejected — Hibernate dialect mismatches with real Postgres are how teams ship subtle bugs), an embedded Postgres binary like `zonky/embedded-postgres` (extra unmaintained dep, slower than Testcontainers cold-start in practice).
 
 ### D7. Compose Postgres service is rendered conditionally
-- **Choice**: `docker-compose.yml` gains a `postgres` service block AND `app.depends_on.postgres.condition: service_healthy` only when `stack_profile == relational-db`. Both are wrapped in `{{ if eq stack_profile "relational-db" }}...{{ end }}` blocks at the YAML level.
+- **Choice**: `local/docker/docker-compose.yml` gains a `postgres` service block AND `app.depends_on.postgres.condition: service_healthy` only when `stack_profile == relational-db`. Both are wrapped in `{{ if eq stack_profile "relational-db" }}...{{ end }}` blocks at the YAML level.
 - **Why**: Spinning up a Postgres container the user doesn't need would be a confusing surprise. Conditional rendering at the YAML level is the same approach `kotlin/template/build.gradle.kts` already uses for its profile-specific deps — well-trodden in this repo.
 - **Risk**: YAML is whitespace-sensitive, so the templating has to be careful with `{{- ... -}}` trimming. Mitigation: render with both profile values during apply and YAML-lint both outputs before declaring done.
 - **Alternatives considered**: Always render the postgres service but documented as optional (rejected — users would still pull the image and pay the startup cost); a separate `docker-compose.db.yml` overlay (rejected — boilr can't render compose profiles cleanly, and it's an extra command for the user to remember).
@@ -87,7 +87,7 @@ Stakeholders: same as the parent change — the template author and downstream s
 
 ## Risks / Trade-offs
 
-- **[Risk] Conditional rendering inside `docker-compose.yml` is YAML-fragile.** A stray space inside a `{{- ... -}}` trim block can break parsing for both profile values. → Mitigation: render the template with `stack_profile=default` and `stack_profile=relational-db` during task 9.x and run `docker compose config` against both outputs to validate.
+- **[Risk] Conditional rendering inside `local/docker/docker-compose.yml` is YAML-fragile.** A stray space inside a `{{- ... -}}` trim block can break parsing for both profile values. → Mitigation: render the template with `stack_profile=default` and `stack_profile=relational-db` during task 9.x and run `docker compose -f local/docker/docker-compose.yml config` against both outputs to validate.
 - **[Risk] Spring Boot starter `data-jpa` adds significant cold-start time even when not using JPA — but in `default` it's not on the classpath.** → Confirmed safe: the dep is inside a `{{ if eq stack_profile "relational-db" }}...{{ end }}` block in `build.gradle.kts`, so `default` is byte-identical to today.
 - **[Risk] Flyway 10+ requires `flyway-database-postgresql`; forgetting it is a startup-time error that's easy to miss in code review.** → Mitigation: D4 explicitly pins both deps, and the verification step (task 9.x) runs `./gradlew bootRun` against the rendered project to catch it at smoke-test time.
 - **[Risk] Testcontainers Postgres pulls a ~150MB image on first run; CI environments without an image cache will see slow first builds.** → Acceptable; mirrors the existing LocalStack constraint. Documented in the rendered README.
@@ -108,6 +108,6 @@ No rollback strategy needed — this is a template, not a deployed system. If th
 
 ## Open Questions
 
-- **Flyway exact version?** Spring Boot 3.3.5's BOM manages a Flyway version, but the `flyway-database-postgresql` dialect module is not in the BOM. We need to pin it manually. Likely `10.18.0` (matches Spring Boot 3.3.5's bundled Flyway core), to be confirmed during apply by checking the BOM and bumping the dialect to match.
+- **Flyway exact version? — RESOLVED during apply.** Pinned to `10.20.1` for both `flyway-core` (transitively via `flyway-database-postgresql`) and the dialect module. The rendered project built green against Spring Boot 3.3.5 and Postgres 16.13, with Flyway successfully validating and applying `V1__init.sql` at startup. If Spring Boot's BOM bumps its bundled Flyway core version in a future upgrade, bump `flyway_version` in `project.json` to match.
 - **Should the integration test also exercise Flyway explicitly** (assert that `V1__init.sql` ran by querying `flyway_schema_history`), or is the implicit "test passes => migration ran" enough? Lean toward implicit — explicit Flyway assertions are noise.
 - **Hibernate `ddl-auto`: `validate` or `none`?** `validate` catches schema/entity drift at startup, `none` is silent. Lean toward `validate` because it's the canonical Spring Data JPA + Flyway pairing and the failure mode (startup error) is exactly when you want it.

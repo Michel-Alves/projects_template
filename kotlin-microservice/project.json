@@ -10,10 +10,21 @@
     "log4j_version": "2.24.1",
     "micrometer_version": "1.13.6",
     "testcontainers_version": "1.20.3",
+    "flyway_version": "10.20.1",
+    "postgres_image_tag": "16-alpine",
+    "mongo_image_tag": "7",
+    "redis_image_tag": "7-alpine",
+    "mongo_driver_version": "5.2.1",
+    "mongock_version": "5.4.4",
     "tld": [
         "com",
         "org"
     ],
     "author": "michelsilves",
-    "app_name": "myservice"
+    "app_name": "myservice",
+    "stack_profile": [
+        "default",
+        "relational-db",
+        "nosql-cache"
+    ]
 }

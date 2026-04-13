@@ -70,9 +70,19 @@ gradle run
 
 ## Kotlin microservice template
 
-Single-shape template (no `stack_profile`) for a Spring Boot 3.x microservice in Kotlin. Opinionated bundle: Spring Boot Web + Actuator, Micrometer + Prometheus, OpenTelemetry SDK + OTLP exporter, Log4j2 with `JsonTemplateLayout` (Logback excluded), AWS SDK v2 SNS publisher and SQS poller, multi-stage `Dockerfile` at the project root (production runtime image), and a `local/docker/docker-compose.yml` running the service alongside LocalStack (SNS/SQS) and an OpenTelemetry collector for local development.
+Opinionated Spring Boot 3.x microservice template in Kotlin. Common bundle (every profile): Spring Boot Web + Actuator, Micrometer + Prometheus, OpenTelemetry SDK + OTLP exporter, Log4j2 with `JsonTemplateLayout` (Logback excluded), AWS SDK v2 SNS publisher and SQS poller, multi-stage `Dockerfile` at the project root (production runtime image), and a `local/docker/docker-compose.yml` running the service alongside LocalStack (SNS/SQS) and an OpenTelemetry collector for local development.
 
-**Prompts** (`kotlin-microservice/project.json`): `tld`, `author`, `app_name`, `version`, `java_version`, plus version pins (`spring_boot_version`, `kotlin_version`, `gradle_version`, `aws_sdk_version`, `otel_version`, `log4j_version`, `micrometer_version`, `testcontainers_version`). Bump versions in one place by editing `project.json`.
+**Stack profiles** (selected via `stack_profile` prompt):
+
+| Profile | Extra dependencies |
+|---------|-------------------|
+| `default` | none — HTTP + messaging only |
+| `relational-db` | Spring Data JPA + Hibernate, Flyway (core + `flyway-database-postgresql`), PostgreSQL JDBC driver, Testcontainers Postgres for integration tests. Adds a `postgres:{{postgres_image_tag}}` service to the compose stack with `pg_isready` healthcheck; the `app` service waits on it. Ships a sample `@Entity`, `JpaRepository`, `V1__init.sql` migration, and a Testcontainers-backed integration test. |
+| `nosql-cache` | **Raw** MongoDB Kotlin sync driver (`mongodb-driver-kotlin-sync`, **not** Spring Data MongoDB), Mongock (`mongock-springboot-v3` + `mongodb-sync-v4-driver`) for migrations, Spring Data Redis (Lettuce) for a `StringRedisTemplate` cache-aside helper, Testcontainers MongoDB + generic Redis container for integration tests. Adds `mongo:{{mongo_image_tag}}` and `redis:{{redis_image_tag}}` services to the compose stack with healthchecks; the `app` service waits on both. Ships a sample `data class`, repository wrapping a `MongoCollection`, a Mongock `ChangeUnit`, a `SampleCache`, a cache-aside `SampleDocumentService`, a hand-wired `MongoHealthIndicator`, and a Testcontainers integration test exercising the full cache-aside flow. **Deliberate asymmetry**: raw Mongo driver but Spring Data Redis — the Mongo abstractions aren't worth their cost, Redis's are. Mongo config is under `app.mongo.*` (not `spring.data.mongodb.*`) because Spring Data Mongo auto-config is intentionally absent. |
+
+The three profiles are mutually exclusive. Future profiles extend the same `stack_profile` array rather than introducing a new prompt.
+
+**Prompts** (`kotlin-microservice/project.json`): `tld`, `author`, `app_name`, `version`, `java_version`, `stack_profile`, plus version pins (`spring_boot_version`, `kotlin_version`, `gradle_version`, `aws_sdk_version`, `otel_version`, `log4j_version`, `micrometer_version`, `testcontainers_version`, `flyway_version`, `postgres_image_tag`, `mongo_image_tag`, `redis_image_tag`, `mongo_driver_version`, `mongock_version`). Bump versions in one place by editing `project.json`.
 
 **Register and use:**
 
